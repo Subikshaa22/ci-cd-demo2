@@ -2,9 +2,9 @@ pipeline {
     agent any
 
     environment {
-        IMAGE = "prathamchawdhry/ci-cd-demo2:jenkins"
+        IMAGE = "subikshaa22/ci-cd-demo2:jenkins"
         VENV = ".venv"
-        PYTHON = "/usr/bin/python3" 
+        PYTHON = "python"   // Windows uses python.exe in PATH
     }
 
     stages {
@@ -12,37 +12,45 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout([$class: 'GitSCM',
-                  branches: [[name: '*/main']],
-                  userRemoteConfigs: [[
-                    url: 'https://github.com/pratham-chawdhry/ci-cd-demo2.git',
-                    credentialsId: 'github-creds'
-                  ]]
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/Subikshaa22/ci-cd-demo2',
+                        credentialsId: 'github-creds'
+                    ]]
                 ])
             }
         }
 
         stage('Create Virtual Environment') {
             steps {
-                sh '$PYTHON -m venv $VENV'
-                sh '$VENV/bin/pip install --upgrade pip'
+                bat """
+                    ${PYTHON} -m venv ${VENV}
+                """
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                sh '$VENV/bin/pip install -r requirements.txt'
+                bat """
+                    ${VENV}\\Scripts\\pip install --upgrade pip
+                    ${VENV}\\Scripts\\pip install -r requirements.txt
+                """
             }
         }
 
         stage('Run Tests') {
             steps {
-                sh '$VENV/bin/pytest -v'
+                bat """
+                    ${VENV}\\Scripts\\pytest -v
+                """
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $IMAGE .'
+                bat """
+                    docker build -t ${IMAGE} .
+                """
             }
         }
 
@@ -51,22 +59,22 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
                                                   usernameVariable: 'USER',
                                                   passwordVariable: 'PASS')]) {
-                    sh '''
-                      echo $PASS | docker login -u $USER --password-stdin
-                      docker push $IMAGE
-                    '''
+                    bat """
+                        echo ${PASS} | docker login -u ${USER} --password-stdin
+                        docker push ${IMAGE}
+                    """
                 }
             }
         }
 
         stage('Deploy Container') {
             steps {
-                sh '''
-                  docker pull $IMAGE
-                  docker stop ci-cd-demo || true
-                  docker rm ci-cd-demo || true
-                  docker run -d -p 5000:5000 --name ci-cd-demo $IMAGE
-                '''
+                bat """
+                    docker pull ${IMAGE}
+                    docker stop ci-cd-demo || exit 0
+                    docker rm ci-cd-demo || exit 0
+                    docker run -d -p 5000:5000 --name ci-cd-demo ${IMAGE}
+                """
             }
         }
     }
